@@ -1,0 +1,49 @@
+name: Build exe
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install dependencies
+        run: python -m pip install -r requirements.txt
+
+      - name: Find script
+        shell: pwsh
+        run: |
+          $f = Get-ChildItem -Filter *.py | Select-Object -First 1
+          if (-not $f) { throw "В корне репозитория нет .py файла" }
+          "SCRIPT=$($f.Name)" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+
+      - name: Make icon
+        shell: pwsh
+        run: python "$env:SCRIPT" --make-icon
+
+      - name: Build exe
+        shell: pwsh
+        run: python -m PyInstaller --noconfirm --onefile --windowed --uac-admin --name WexxyyTweaker --icon W.ico --add-data "W.ico;." --collect-all customtkinter "$env:SCRIPT"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: WexxyyTweaker
+          path: dist/WexxyyTweaker.exe
+
+      - name: Publish release
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: dist/WexxyyTweaker.exe
